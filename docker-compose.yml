@@ -8,10 +8,5 @@ services:
     ports:
       - "8700:8000"
     volumes:
-      - media_data:/data/media
-      - static_data:/data/staticfiles
-
-  
-volumes:
-  media_data:
-  static_data:
+      - /home/fidelidade/data/media:/data/media
+      - /home/fidelidade/data/staticfiles:/data/staticfiles

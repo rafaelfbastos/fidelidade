@@ -1,0 +1,33 @@
+# Frontend (SPA)
+app.example.com {
+    root * /home/fidelidade/frontend/dist
+    try_files {path} /index.html
+    encode zstd gzip
+    file_server
+    header {
+        Strict-Transport-Security "max-age=31536000; includeSubDomains; preload"
+    }
+}
+
+# Backend API + static/media
+api.example.com {
+    @static path /static/*
+    handle @static {
+        root * /home/fidelidade/data/staticfiles
+        file_server
+    }
+
+    @media path /media/*
+    handle @media {
+        root * /home/fidelidade/data/media
+        file_server
+    }
+
+    handle {
+        reverse_proxy 127.0.0.1:8700
+    }
+
+    header {
+        Strict-Transport-Security "max-age=31536000; includeSubDomains; preload"
+    }
+}
