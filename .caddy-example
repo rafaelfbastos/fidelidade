@@ -1,5 +1,5 @@
-# Frontend (SPA)
-app.example.com {
+# Frontend (SPA) - https://app.fidelidade.bastostech.top
+app.fidelidade.bastostech.top {
     root * /home/fidelidade/frontend/dist
     try_files {path} /index.html
     encode zstd gzip
@@ -9,8 +9,8 @@ app.example.com {
     }
 }
 
-# Backend API + static/media
-api.example.com {
+# Backend API + static/media - https://fidelidade.bastostech.top
+fidelidade.bastostech.top {
     @static path /static/*
     handle @static {
         root * /home/fidelidade/data/staticfiles
