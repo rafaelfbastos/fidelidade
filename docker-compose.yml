@@ -1,0 +1,17 @@
+services:
+  backend:
+    build:
+      context: ./backend
+    env_file:
+      - .env
+    restart: unless-stopped
+    ports:
+      - "8700:8000"
+    volumes:
+      - media_data:/data/media
+      - static_data:/data/staticfiles
+
+  
+volumes:
+  media_data:
+  static_data:

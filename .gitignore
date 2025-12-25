@@ -1,0 +1,55 @@
+# OS / Editor artifacts
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+*.iml
+
+# Environment files
+.env
+.env.*
+!.env.example
+
+# Python / Django build artifacts
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+*.so
+*.egg-info/
+pip-wheel-metadata/
+*.egg
+*.manifest
+*.spec
+build/
+develop-eggs/
+dist/
+eggs/
+.mypy_cache/
+.pytest_cache/
+.ruff_cache/
+.venv/
+venv/
+env/
+
+# Coverage / test outputs
+.coverage
+.coverage.*
+coverage/
+htmlcov/
+
+# Django generated files
+local_settings.py
+media/
+data/media/
+staticfiles/
+
+# Node / Vite artifacts
+node_modules/
+dist/
+*.tsbuildinfo
+*.local
+
+# Logs
+*.log
+logs/
