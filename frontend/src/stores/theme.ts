@@ -6,7 +6,9 @@ import type { CompanyTheme } from '@/types/auth'
 import { useAuthStore } from './auth'
 
 export interface ThemeFormValues {
+  logoMode: 'upload' | 'url'
   logoUrl: string
+  logoFile: File | null
   primaryColor: string
   secondaryColor: string
   accentColor: string
@@ -21,7 +23,9 @@ export interface ThemeFormValues {
 }
 
 const FALLBACK_FORM: ThemeFormValues = {
+  logoMode: 'upload',
   logoUrl: '',
+  logoFile: null,
   primaryColor: '#2563eb',
   secondaryColor: '#4338ca',
   accentColor: '#4c1d95',
@@ -36,12 +40,11 @@ const FALLBACK_FORM: ThemeFormValues = {
 }
 
 const buildFormFromTheme = (theme?: CompanyTheme | null, fallbackLogo?: string): ThemeFormValues => {
+  const currentOverride = theme?.extra_config?.logo_url_override as string | undefined
   return {
-    logoUrl:
-      (theme?.extra_config?.logo_url_override as string | undefined) ??
-      theme?.logos?.light ??
-      fallbackLogo ??
-      FALLBACK_FORM.logoUrl,
+    logoMode: currentOverride ? 'url' : 'upload',
+    logoUrl: currentOverride ?? theme?.logos?.light ?? fallbackLogo ?? FALLBACK_FORM.logoUrl,
+    logoFile: null,
     primaryColor: theme?.colors?.primary ?? FALLBACK_FORM.primaryColor,
     secondaryColor: theme?.colors?.secondary ?? FALLBACK_FORM.secondaryColor,
     accentColor: theme?.colors?.accent ?? FALLBACK_FORM.accentColor,
@@ -80,7 +83,7 @@ export const useThemeStore = defineStore('theme', () => {
     authStore.setCompany({ ...currentCompany, theme })
   }
 
-  const buildUpdatePayload = (form: ThemeFormValues): ThemeUpdatePayload => {
+  const buildUpdatePayload = (form: ThemeFormValues): ThemeUpdatePayload | FormData => {
     const payload: ThemeUpdatePayload = {
       primary_color: form.primaryColor,
       secondary_color: form.secondaryColor,
@@ -96,17 +99,36 @@ export const useThemeStore = defineStore('theme', () => {
     }
 
     const currentExtraConfig = (authStore.selectedCompany?.theme?.extra_config ?? {}) as Record<string, unknown>
-    const currentLogoOverride = currentExtraConfig.logo_url_override as string | undefined
+    const nextExtraConfig = { ...currentExtraConfig }
 
-    if (form.logoUrl !== currentLogoOverride) {
-      const nextExtraConfig = { ...currentExtraConfig }
+    if (form.logoMode === 'url') {
       if (form.logoUrl) {
         nextExtraConfig.logo_url_override = form.logoUrl
       } else {
         delete nextExtraConfig.logo_url_override
       }
+    } else if (nextExtraConfig.logo_url_override) {
+      delete nextExtraConfig.logo_url_override
+    }
 
+    if (JSON.stringify(nextExtraConfig) !== JSON.stringify(currentExtraConfig)) {
       payload.extra_config = nextExtraConfig
+    }
+
+    const shouldSendFile = form.logoMode === 'upload' && !!form.logoFile
+    if (shouldSendFile) {
+      const formData = new FormData()
+      Object.entries(payload).forEach(([key, value]) => {
+        if (value === undefined || value === null) return
+        if (key === 'extra_config' && typeof value === 'object') {
+          formData.append(key, JSON.stringify(value))
+        } else {
+          formData.append(key, String(value))
+        }
+      })
+
+      formData.append('logo_light', form.logoFile as File)
+      return formData
     }
 
     return payload
@@ -140,7 +162,7 @@ export const useThemeStore = defineStore('theme', () => {
       const payload = buildUpdatePayload(form)
       const { data } = await api.patch<CompanyTheme>(`/companies/themes/${companyUuid}/`, payload)
 
-      if (form.logoUrl) {
+      if (form.logoMode === 'url' && form.logoUrl) {
         data.logos = {
           ...data.logos,
           light: form.logoUrl,
@@ -149,7 +171,11 @@ export const useThemeStore = defineStore('theme', () => {
           ...(data.extra_config ?? {}),
           logo_url_override: form.logoUrl,
         }
-      } else if (data.extra_config) {
+      } else if (form.logoMode === 'url' && !form.logoUrl) {
+        if (data.extra_config) {
+          delete data.extra_config.logo_url_override
+        }
+      } else if (form.logoMode === 'upload' && data.extra_config) {
         delete data.extra_config.logo_url_override
       }
 

@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, reactive, ref, watch } from 'vue'
+import { computed, onBeforeUnmount, reactive, ref, watch } from 'vue'
 
 import { useThemeStore, type ThemeFormValues } from '@/stores/theme'
 import { useAuthStore } from '@/stores/auth'
@@ -7,6 +7,8 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter }
 import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
 import { Separator } from '@/components/ui/separator'
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
+import { UploadCloud, Trash2 } from 'lucide-vue-next'
 
 const themeStore = useThemeStore()
 const authStore = useAuthStore()
@@ -83,6 +85,78 @@ const isResetting = computed(() => themeStore.resettingTheme)
 const hasPendingAction = computed(() => isSaving.value || isResetting.value)
 const errorMessage = computed(() => themeStore.error)
 
+const existingLogo = computed(
+  () => themeStore.selectedTheme?.logos?.light ?? authStore.selectedCompany?.company.logo ?? '',
+)
+
+const fileInputRef = ref<HTMLInputElement | null>(null)
+const filePreviewUrl = ref<string | null>(null)
+
+const resetFilePreview = () => {
+  if (filePreviewUrl.value) {
+    URL.revokeObjectURL(filePreviewUrl.value)
+    filePreviewUrl.value = null
+  }
+}
+
+watch(
+  () => form.logoFile,
+  (file) => {
+    resetFilePreview()
+    if (file) {
+      filePreviewUrl.value = URL.createObjectURL(file)
+    }
+  },
+)
+
+onBeforeUnmount(() => {
+  resetFilePreview()
+})
+
+const logoPreview = computed(() => {
+  if (filePreviewUrl.value) return filePreviewUrl.value
+  if (form.logoMode === 'url' && form.logoUrl) return form.logoUrl
+  return form.logoUrl || existingLogo.value || ''
+})
+
+const triggerLogoUpload = () => {
+  fileInputRef.value?.click()
+}
+
+const handleLogoFileChange = (event: Event) => {
+  const target = event.target as HTMLInputElement
+  const files = target.files
+  if (!files || !files.length) return
+  const file = files.item(0)
+  if (!file) return
+  form.logoMode = 'upload'
+  form.logoFile = file
+}
+
+const clearLogoFile = () => {
+  form.logoFile = null
+  if (fileInputRef.value) {
+    fileInputRef.value.value = ''
+  }
+}
+
+const handleLogoModeChange = (value: string | number) => {
+  const parsedValue = value === 'url' ? 'url' : 'upload'
+  form.logoMode = parsedValue
+  if (parsedValue === 'url') {
+    clearLogoFile()
+  }
+}
+
+const formatBytes = (bytes: number) => {
+  if (!bytes) return '0 KB'
+  const kbValue = bytes / 1024
+  if (kbValue >= 1024) {
+    return `${(kbValue / 1024).toFixed(1)} MB`
+  }
+  return `${Math.max(1, Math.round(kbValue))} KB`
+}
+
 const handleApply = async () => {
   try {
     await themeStore.updateTheme({ ...form })
@@ -108,18 +182,97 @@ const handleReset = async () => {
     <Card>
       <CardHeader>
         <CardTitle>Identidade visual</CardTitle>
-        <CardDescription>Defina a logo utilizada no cabeçalho e na sidebar.</CardDescription>
+        <CardDescription>Envie uma nova arte ou informe a URL pública utilizada no painel.</CardDescription>
       </CardHeader>
-      <CardContent class="grid items-center gap-6 md:grid-cols-[1fr_auto]">
-        <div class="space-y-2">
-          <label class="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Logo (URL)</label>
-          <Input v-model="form.logoUrl" type="url" placeholder="https://cdn.exemplo.com/logo.png" />
-          <p class="text-[11px] text-muted-foreground">PNG com fundo transparente é recomendado.</p>
-        </div>
-        <div class="flex h-24 w-full max-w-[180px] items-center justify-center rounded-2xl border bg-muted/30 p-4">
-          <img v-if="form.logoUrl" :src="form.logoUrl" alt="Prévia da logo" class="h-full object-contain" />
-          <span v-else class="text-xs text-muted-foreground">Prévia indisponível</span>
-        </div>
+      <CardContent class="space-y-6">
+        <Tabs
+          v-model:model-value="form.logoMode"
+          class="space-y-4"
+          @update:model-value="handleLogoModeChange"
+        >
+          <TabsList class="grid w-full grid-cols-2 rounded-full bg-muted/60 p-1">
+            <TabsTrigger
+              value="upload"
+              class="data-[state=active]:bg-primary data-[state=active]:text-primary-foreground"
+            >
+              Fazer upload
+            </TabsTrigger>
+            <TabsTrigger
+              value="url"
+              class="data-[state=active]:bg-primary data-[state=active]:text-primary-foreground"
+            >
+              Usar URL
+            </TabsTrigger>
+          </TabsList>
+
+          <TabsContent value="upload">
+            <div class="grid items-start gap-6 md:grid-cols-[minmax(0,1fr)_220px]">
+              <div class="space-y-4">
+                <div
+                  class="rounded-3xl border-2 border-dashed bg-muted/10 p-6 text-center shadow-sm transition hover:bg-muted/20"
+                  :style="{ borderColor: form.primaryColor }"
+                >
+                  <UploadCloud class="mx-auto h-10 w-10 text-muted-foreground" />
+                  <p class="mt-3 text-sm font-medium">PNG ou SVG com transparência</p>
+                  <p class="text-xs text-muted-foreground">Sugestão: fundo transparente • até 2&nbsp;MB</p>
+                  <Button class="mt-4" type="button" @click="triggerLogoUpload">Selecionar arquivo</Button>
+                  <input
+                    ref="fileInputRef"
+                    type="file"
+                    accept="image/png,image/jpeg,image/svg+xml"
+                    class="sr-only"
+                    @change="handleLogoFileChange"
+                  />
+                </div>
+                <div
+                  v-if="form.logoFile"
+                  class="flex items-center justify-between rounded-2xl border bg-muted/40 px-4 py-2"
+                >
+                  <div class="min-w-0">
+                    <p class="truncate text-sm font-medium">{{ form.logoFile.name }}</p>
+                    <p class="text-xs text-muted-foreground">{{ formatBytes(form.logoFile.size) }}</p>
+                  </div>
+                  <Button variant="ghost" size="icon" class="h-8 w-8 text-muted-foreground" @click="clearLogoFile">
+                    <Trash2 class="h-4 w-4" />
+                  </Button>
+                </div>
+                <p class="text-[11px] text-muted-foreground">
+                  A logo enviada substitui a atual após salvar. Para remover, limpe o campo e restaure o padrão.
+                </p>
+              </div>
+              <div class="flex h-32 w-full items-center justify-center rounded-2xl border bg-muted/20 p-4">
+                <img
+                  v-if="logoPreview"
+                  :src="logoPreview"
+                  alt="Prévia da logo"
+                  class="max-h-full object-contain"
+                />
+                <span v-else class="text-xs text-muted-foreground">Prévia indisponível</span>
+              </div>
+            </div>
+          </TabsContent>
+
+          <TabsContent value="url">
+            <div class="grid items-start gap-6 md:grid-cols-[minmax(0,1fr)_220px]">
+              <div class="space-y-2">
+                <label class="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                  Logo (URL pública)
+                </label>
+                <Input v-model="form.logoUrl" type="url" placeholder="https://cdn.exemplo.com/logo.png" />
+                <p class="text-[11px] text-muted-foreground">Utilize HTTPS e um PNG transparente hospedado no CDN.</p>
+              </div>
+              <div class="flex h-32 w-full items-center justify-center rounded-2xl border bg-muted/20 p-4">
+                <img
+                  v-if="logoPreview"
+                  :src="logoPreview"
+                  alt="Prévia da logo"
+                  class="max-h-full object-contain"
+                />
+                <span v-else class="text-xs text-muted-foreground">Prévia indisponível</span>
+              </div>
+            </div>
+          </TabsContent>
+        </Tabs>
       </CardContent>
     </Card>
 

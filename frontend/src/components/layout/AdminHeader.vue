@@ -38,6 +38,10 @@ const initials = computed(() => {
 const handleCompanySwitch = () => {
   router.push({ name: 'company-select' })
 }
+
+const handleProfileClick = () => {
+  router.push({ name: 'user-profile' })
+}
 </script>
 
 <template>
@@ -85,6 +89,7 @@ const handleCompanySwitch = () => {
         </DropdownMenuTrigger>
         <DropdownMenuContent align="end" class="w-56">
           <DropdownMenuLabel>Conta</DropdownMenuLabel>
+          <DropdownMenuItem @click="handleProfileClick">Perfil</DropdownMenuItem>
           <DropdownMenuItem @click="handleCompanySwitch">Trocar empresa</DropdownMenuItem>
           <DropdownMenuItem>Integrações</DropdownMenuItem>
           <DropdownMenuSeparator />

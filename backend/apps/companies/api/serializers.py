@@ -1,6 +1,11 @@
-from rest_framework import serializers
-from apps.companies.models import Company, CompanyMember, CompanyTheme
+from django.contrib.auth import get_user_model
 from django.core.validators import RegexValidator
+from rest_framework import serializers
+from rest_framework.exceptions import ValidationError
+
+from apps.companies.models import Company, CompanyMember, CompanyTheme
+
+User = get_user_model()
 
 
 class CompanyThemeSerializer(serializers.ModelSerializer):
@@ -119,6 +124,143 @@ class UserCompanySerializer(serializers.ModelSerializer):
             return CompanyThemeSerializer(theme, context=self.context).data
         except CompanyTheme.DoesNotExist:
             return None
+
+
+class CompanyMemberUserSerializer(serializers.ModelSerializer):
+    """
+    Representação resumida do usuário associado a uma empresa.
+    """
+    full_name = serializers.CharField(source='get_full_name', read_only=True)
+
+    class Meta:
+        model = User
+        fields = [
+            'id',
+            'email',
+            'first_name',
+            'last_name',
+            'full_name',
+            'phone',
+        ]
+        read_only_fields = fields
+
+
+class CompanyMemberSerializer(serializers.ModelSerializer):
+    """
+    Serializer principal para membros da empresa exibindo dados do usuário.
+    """
+    user = CompanyMemberUserSerializer(read_only=True)
+    role_display = serializers.CharField(source='get_role_display', read_only=True)
+
+    class Meta:
+        model = CompanyMember
+        fields = [
+            'uuid',
+            'role',
+            'role_display',
+            'is_active',
+            'created_at',
+            'user',
+        ]
+        read_only_fields = [
+            'uuid',
+            'role_display',
+            'is_active',
+            'created_at',
+            'user',
+        ]
+
+
+class CompanyMemberCreateSerializer(serializers.Serializer):
+    """
+    Serializer usado para criar/associar usuários a uma empresa.
+    """
+    email = serializers.EmailField()
+    first_name = serializers.CharField(max_length=150, required=False, allow_blank=True)
+    last_name = serializers.CharField(max_length=150, required=False, allow_blank=True)
+    phone = serializers.CharField(max_length=20, required=False, allow_blank=True)
+    role = serializers.ChoiceField(choices=CompanyMember.Role.choices, default=CompanyMember.Role.ATTENDANT)
+    password = serializers.CharField(
+        max_length=128,
+        required=False,
+        allow_blank=True,
+        style={'input_type': 'password'}
+    )
+
+    default_error_messages = {
+        'missing_name': 'Informe o nome do usuário para criar um novo cadastro.',
+        'already_member': 'Este usuário já está associado à empresa.',
+    }
+
+    def validate(self, attrs):
+        email = attrs.get('email', '').lower()
+        attrs['email'] = email
+
+        user_exists = User.objects.filter(email=email).exists()
+        if not user_exists and not attrs.get('first_name'):
+            raise ValidationError({'first_name': self.error_messages['missing_name']})
+        return attrs
+
+    def create(self, validated_data):
+        company = self.context['company']
+        email = validated_data['email']
+        defaults = {
+            'first_name': validated_data.get('first_name') or '',
+            'last_name': validated_data.get('last_name') or '',
+            'phone': validated_data.get('phone') or '',
+        }
+
+        user = User.objects.filter(email=email).first()
+        if not user:
+            password = validated_data.get('password') or None
+            user = User.objects.create_user(email=email, password=password, **defaults)
+        else:
+            updated = False
+            for field, value in defaults.items():
+                if value and getattr(user, field) != value:
+                    setattr(user, field, value)
+                    updated = True
+            if validated_data.get('password'):
+                user.set_password(validated_data['password'])
+                updated = True
+            if updated:
+                user.save()
+
+        role = validated_data['role']
+
+        try:
+            membership = CompanyMember.all_objects.get(user=user, company=company)
+            if membership.deleted_at:
+                membership.restore()
+        except CompanyMember.DoesNotExist:
+            membership = CompanyMember(user=user, company=company)
+
+        if membership.pk and membership.is_active and membership.deleted_at is None and membership.role == role:
+            return membership
+
+        membership.role = role
+        membership.is_active = True
+        membership.save()
+
+        return membership
+
+
+class CompanyMemberPasswordResetSerializer(serializers.Serializer):
+    """
+    Serializer utilizado para redefinir a senha de um membro específico.
+    """
+    password = serializers.CharField(
+        min_length=8,
+        max_length=128,
+        style={'input_type': 'password'}
+    )
+
+
+class CompanyMemberPasswordResetResponseSerializer(serializers.Serializer):
+    """
+    Serializer de resposta para redefinição de senha.
+    """
+    password = serializers.CharField(read_only=True)
 
 
 class CompanyThemeUpdateSerializer(serializers.ModelSerializer):

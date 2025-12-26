@@ -5,7 +5,8 @@ from drf_spectacular.utils import extend_schema
 from .views import (
     CustomTokenObtainPairView,
     UserRegistrationView,
-    current_user_view,
+    CurrentUserView,
+    ChangePasswordView,
     logout_view,
 )
 
@@ -26,5 +27,6 @@ urlpatterns = [
     path('register/', UserRegistrationView.as_view(), name='register'),
 
     # Usuário atual
-    path('me/', current_user_view, name='current_user'),
+    path('me/', CurrentUserView.as_view(), name='current_user'),
+    path('me/password/', ChangePasswordView.as_view(), name='change_password'),
 ]

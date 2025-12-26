@@ -13,12 +13,14 @@ app.fidelidade.bastostech.top {
 fidelidade.bastostech.top {
     @static path /static/*
     handle @static {
+        uri strip_prefix /static
         root * /home/fidelidade/data/staticfiles
         file_server
     }
 
     @media path /media/*
     handle @media {
+        uri strip_prefix /media
         root * /home/fidelidade/data/media
         file_server
     }

@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import { RouterLink, useRoute } from 'vue-router'
-import { Gift, LayoutDashboard, Settings2, Sparkles, Users } from 'lucide-vue-next'
+import { Gift, LayoutDashboard, Settings2, Sparkles, Users, UserCog } from 'lucide-vue-next'
 
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { Badge } from '@/components/ui/badge'
@@ -35,7 +35,15 @@ const primaryNav: NavItem[] = [
   { label: 'Campanhas', icon: Sparkles },
 ]
 
-const secondaryNav: NavItem[] = [{ label: 'Ajustes visuais', icon: Settings2, to: '/settings/layout' }]
+const canManageUsers = computed(() => ['owner', 'admin'].includes(authStore.selectedCompany?.role ?? ''))
+
+const secondaryNav = computed<NavItem[]>(() => {
+  const items: NavItem[] = [{ label: 'Ajustes visuais', icon: Settings2, to: '/settings/layout' }]
+  if (canManageUsers.value) {
+    items.unshift({ label: 'Usuários da empresa', icon: UserCog, to: '/settings/users' })
+  }
+  return items
+})
 
 const brandName = computed(() => authStore.selectedCompany?.company.trade_name || 'Painel Admin')
 const brandSubtitle = computed(() => 'Fidelidade+')

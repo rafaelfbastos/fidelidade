@@ -9,7 +9,8 @@ from drf_spectacular.utils import extend_schema, extend_schema_view, OpenApiExam
 from .serializers import (
     CustomTokenObtainPairSerializer,
     UserSerializer,
-    UserRegistrationSerializer
+    UserRegistrationSerializer,
+    ChangePasswordSerializer,
 )
 
 
@@ -57,21 +58,52 @@ class UserRegistrationView(generics.CreateAPIView):
         }, status=status.HTTP_201_CREATED)
 
 
+@extend_schema_view(
+    get=extend_schema(
+        tags=['auth'],
+        summary='Obter dados do usuário autenticado',
+        description='Retorna informações completas do usuário incluindo empresas e temas.',
+        responses={200: UserSerializer},
+    ),
+    patch=extend_schema(
+        tags=['auth'],
+        summary='Atualizar dados do usuário autenticado',
+        description='Permite alterar nome e telefone do usuário autenticado.',
+        responses={200: UserSerializer},
+    ),
+    put=extend_schema(
+        tags=['auth'],
+        summary='Atualizar dados do usuário autenticado',
+        description='Permite alterar nome e telefone do usuário autenticado.',
+        responses={200: UserSerializer},
+    ),
+)
+class CurrentUserView(generics.RetrieveUpdateAPIView):
+    """
+    Permite visualizar e atualizar os dados básicos do usuário autenticado.
+    """
+    serializer_class = UserSerializer
+    permission_classes = [IsAuthenticated]
+
+    def get_object(self):
+        return self.request.user
+
+
 @extend_schema(
     tags=['auth'],
-    summary='Obter dados do usuário autenticado',
-    description='Retorna informações completas do usuário incluindo empresas e temas.',
-    responses={200: UserSerializer},
+    summary='Alterar senha do usuário autenticado',
+    description='Valida a senha atual e atualiza a senha conforme regras do Django.',
+    request=ChangePasswordSerializer,
 )
-@api_view(['GET'])
-@permission_classes([IsAuthenticated])
-def current_user_view(request):
-    """
-    Retorna dados completos do usuário autenticado.
-    Inclui lista de empresas que gerencia com roles e temas visuais.
-    """
-    serializer = UserSerializer(request.user, context={'request': request})
-    return Response(serializer.data)
+class ChangePasswordView(generics.GenericAPIView):
+    serializer_class = ChangePasswordSerializer
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request, *args, **kwargs):
+        serializer = self.get_serializer(data=request.data, context={'request': request})
+        serializer.is_valid(raise_exception=True)
+        serializer.save()
+        return Response({'detail': 'Senha atualizada com sucesso.'}, status=status.HTTP_200_OK)
 
 
 @extend_schema(

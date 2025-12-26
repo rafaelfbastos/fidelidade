@@ -58,7 +58,14 @@ class UserSerializer(serializers.ModelSerializer):
             'date_joined',
             'companies',  # Lista de empresas que o usuário gerencia
         ]
-        read_only_fields = ['id', 'email', 'date_joined']
+        read_only_fields = [
+            'id',
+            'email',
+            'date_joined',
+            'companies',
+            'full_name',
+            'is_active',
+        ]
 
     def get_companies(self, obj):
         """
@@ -78,6 +85,20 @@ class UserSerializer(serializers.ModelSerializer):
             many=True,
             context=self.context
         ).data
+
+    def update(self, instance, validated_data):
+        """
+        Limita atualização do perfil a campos básicos.
+        """
+        allowed_fields = {'first_name', 'last_name', 'phone'}
+        updated_fields = []
+        for field in allowed_fields:
+            if field in validated_data:
+                setattr(instance, field, validated_data[field])
+                updated_fields.append(field)
+        if updated_fields:
+            instance.save(update_fields=updated_fields)
+        return instance
 
 
 class UserRegistrationSerializer(serializers.ModelSerializer):
@@ -116,4 +137,37 @@ class UserRegistrationSerializer(serializers.ModelSerializer):
     def create(self, validated_data):
         validated_data.pop('password_confirm')
         user = User.objects.create_user(**validated_data)
+        return user
+
+
+class ChangePasswordSerializer(serializers.Serializer):
+    """
+    Serializer para alteração de senha do usuário autenticado.
+    """
+    current_password = serializers.CharField(write_only=True)
+    new_password = serializers.CharField(write_only=True)
+    new_password_confirm = serializers.CharField(write_only=True)
+
+    def validate_current_password(self, value):
+        user = self.context['request'].user
+        if not user.check_password(value):
+            raise serializers.ValidationError('Senha atual incorreta.')
+        return value
+
+    def validate(self, attrs):
+        new_password = attrs.get('new_password')
+        confirm_password = attrs.get('new_password_confirm')
+
+        if new_password != confirm_password:
+            raise serializers.ValidationError({'new_password_confirm': 'As senhas não coincidem.'})
+
+        from django.contrib.auth.password_validation import validate_password
+
+        validate_password(new_password, self.context['request'].user)
+        return attrs
+
+    def save(self, **kwargs):
+        user = self.context['request'].user
+        user.set_password(self.validated_data['new_password'])
+        user.save(update_fields=['password'])
         return user

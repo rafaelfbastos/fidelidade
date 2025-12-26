@@ -41,8 +41,29 @@ const router = createRouter({
       },
     },
     {
+      path: '/settings/users',
+      name: 'company-users',
+      component: () => import('../views/Settings/CompanyUsersView.vue'),
+      meta: {
+        requiresAuth: true,
+        requiresCompanyRole: ['owner', 'admin'],
+      },
+    },
+    {
+      path: '/profile',
+      name: 'user-profile',
+      component: () => import('../views/Profile/UserProfileView.vue'),
+      meta: {
+        requiresAuth: true,
+      },
+    },
+    {
       path: '/:pathMatch(.*)*',
-      redirect: '/',
+      name: 'not-found',
+      component: () => import('../views/Errors/NotFoundView.vue'),
+      meta: {
+        requiresAuth: false,
+      },
     },
   ],
 })
@@ -61,6 +82,14 @@ router.beforeEach((to, _from, next) => {
 
   if (to.meta.requiresAuth && !to.meta.allowWithoutCompany && needsCompanySelection && to.name !== 'company-select') {
     return next({ name: 'company-select' })
+  }
+
+  const requiredRoles = to.meta.requiresCompanyRole as string[] | undefined
+  if (to.meta.requiresAuth && requiredRoles?.length) {
+    const currentRole = authStore.selectedCompany?.role
+    if (!currentRole || !requiredRoles.includes(currentRole)) {
+      return next({ name: 'dashboard' })
+    }
   }
 
   if (to.name === 'login' && authStore.isAuthenticated) {

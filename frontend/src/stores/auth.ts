@@ -11,6 +11,13 @@ interface LoginPayload {
   persist?: boolean
 }
 
+type UpdateProfilePayload = Partial<Pick<AuthUser, 'first_name' | 'last_name' | 'phone'>>
+interface ChangePasswordPayload {
+  current_password: string
+  new_password: string
+  new_password_confirm: string
+}
+
 const STORAGE_KEYS = {
   access: 'access_token',
   refresh: 'refresh_token',
@@ -27,6 +34,17 @@ export const useAuthStore = defineStore('auth', () => {
   const error = ref<string | null>(null)
 
   const isAuthenticated = computed(() => Boolean(user.value && accessToken.value))
+
+  const getErrorMessage = (err: any, fallback = 'Algo deu errado. Tente novamente.') => {
+    const data = err?.response?.data
+    if (!data) return fallback
+    if (typeof data === 'string') return data
+    if (typeof data.detail === 'string') return data.detail
+    const firstValue = Object.values(data)[0]
+    if (Array.isArray(firstValue)) return String(firstValue[0])
+    if (typeof firstValue === 'string') return firstValue
+    return fallback
+  }
 
   const persistAuthState = () => {
     if (user.value) localStorage.setItem(STORAGE_KEYS.user, JSON.stringify(user.value))
@@ -99,6 +117,31 @@ export const useAuthStore = defineStore('auth', () => {
     resetThemeToDefault()
   }
 
+  const updateProfile = async (payload: UpdateProfilePayload) => {
+    try {
+      const { data } = await api.patch<AuthUser>('/auth/me/', payload)
+      user.value = data
+      if (localStorage.getItem(STORAGE_KEYS.user)) {
+        persistAuthState()
+      }
+      return { success: true, data }
+    } catch (err: any) {
+      const message = getErrorMessage(err, 'Não foi possível atualizar o perfil.')
+      return { success: false, message }
+    }
+  }
+
+  const changePassword = async (payload: ChangePasswordPayload) => {
+    try {
+      const { data } = await api.post('/auth/me/password/', payload)
+      return { success: true, data }
+    } catch (err: any) {
+      const message = getErrorMessage(err, 'Não foi possível alterar a senha.')
+      const errors = err?.response?.data && typeof err.response.data === 'object' ? err.response.data : null
+      return { success: false, message, errors }
+    }
+  }
+
   initializeFromStorage()
 
   return {
@@ -112,5 +155,7 @@ export const useAuthStore = defineStore('auth', () => {
     login,
     logout,
     setCompany,
+    updateProfile,
+    changePassword,
   }
 })
